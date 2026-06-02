@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DSR Automation
 
 Boilerplate folder structure for a Go, PostgreSQL, Gemini-based Daily Status Report automation service.
@@ -15,3 +16,6 @@ Boilerplate folder structure for a Go, PostgreSQL, Gemini-based Daily Status Rep
 - `pkg/utils`: shared utilities
 - `pkg/jwt`: JWT helpers
 - `migrations`: database migrations
+=======
+# DSR_Automation
+>>>>>>> 07fc209d668541e5b94af34ab9036ed1c6d4f9c5
