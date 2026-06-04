@@ -14,9 +14,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	if err := cfg.Validate(); err != nil {
-		log.Fatalf("config: %v", err)
-	}
 
 	if _, err := config.ConnectDatabase(cfg.DatabaseURL); err != nil {
 		log.Fatalf("database: %v", err)
