@@ -8,6 +8,8 @@ import (
 	"dsr-automation/internal/routes"
 	"dsr-automation/internal/services"
 	"dsr-automation/pkg/config"
+	ghclient "dsr-automation/pkg/github"
+	"dsr-automation/pkg/gitlab"
 	"dsr-automation/pkg/jwt"
 	"dsr-automation/pkg/utils/passwordhashing"
 	"fmt"
@@ -28,16 +30,26 @@ func main() {
 	}
 	fmt.Println("connected to database")
 
-	userRepo := repository.NewAuthRepository(db)
+	authRepo := repository.NewAuthRepository(db)
+	gitRepo := repository.NewGitRepository(db)
 	hasher := passwordhashing.NewBcryptHasher(10)
 	jwtSvc := jwt.NewService(cfg.JWTSecret, cfg.JWTSecret)
-	authService := services.NewAuthService(userRepo, hasher, jwtSvc)
+	gitlabClient := gitlab.NewClient()
+	githubClient := ghclient.NewClient()
+
+	authService := services.NewAuthService(authRepo, hasher, jwtSvc)
+	gitService := services.NewGitIntegrationService(gitRepo, gitlabClient, githubClient)
+
 	authHandler := handlers.NewAuthHandler(authService)
+	gitHandler := handlers.NewGitIntegrationHandler(gitService)
 
 	app := fiber.New()
 	app.Use(middleware.Logger())
 	app.Use(middleware.Recover())
-	routes.Setup(app, routes.Handlers{Auth: authHandler})
+	routes.Setup(app, routes.Dependencies{JWT: jwtSvc}, routes.Handlers{
+		Auth: authHandler,
+		Git:  gitHandler,
+	})
 
 	fmt.Printf("server listening on :%s\n", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {
