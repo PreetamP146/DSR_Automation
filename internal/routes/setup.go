@@ -7,7 +7,7 @@ import (
 )
 
 type Handlers struct {
-	Auth *handlers.AuthHandler
+	Auth handlers.AuthHandler
 }
 
 func Setup(app *fiber.App, h Handlers) {

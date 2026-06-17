@@ -9,15 +9,20 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type AuthHandler struct {
+type AuthHandler interface {
+	Register(c *fiber.Ctx) error
+	Login(c *fiber.Ctx) error
+}
+
+type authHandler struct {
 	authService services.AuthService
 }
 
-func NewAuthHandler(authService services.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService services.AuthService) AuthHandler {
+	return &authHandler{authService: authService}
 }
 
-func (h *AuthHandler) Register(c *fiber.Ctx) error {
+func (h *authHandler) Register(c *fiber.Ctx) error {
 	var req dto.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -51,7 +56,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
-func (h *AuthHandler) Login(c *fiber.Ctx) error {
+func (h *authHandler) Login(c *fiber.Ctx) error {
 	var req dto.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
