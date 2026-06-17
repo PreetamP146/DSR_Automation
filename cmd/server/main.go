@@ -1,8 +1,15 @@
 package main
 
 import (
-	"dsr-automation/internal/config"
-	env "dsr-automation/pkg/config"
+	"dsr-automation/internal/database"
+	"dsr-automation/internal/handlers"
+	"dsr-automation/internal/middleware"
+	"dsr-automation/internal/repository"
+	"dsr-automation/internal/routes"
+	"dsr-automation/internal/services"
+	"dsr-automation/pkg/config"
+	"dsr-automation/pkg/jwt"
+	"dsr-automation/pkg/utils/passwordhashing"
 	"fmt"
 	"log"
 
@@ -10,22 +17,27 @@ import (
 )
 
 func main() {
-	cfg, err := env.Load()
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
 
-	if _, err := config.ConnectDatabase(cfg.DatabaseURL); err != nil {
+	db, err := database.Connect(cfg.DatabaseURL)
+	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
-
 	fmt.Println("connected to database")
 
-	app := fiber.New()
+	userRepo := repository.NewUserRepository(db)
+	hasher := passwordhashing.NewBcryptHasher(10)
+	jwtSvc := jwt.NewService(cfg.JWTSecret, cfg.JWTSecret)
+	authService := services.NewAuthService(userRepo, hasher, jwtSvc)
+	authHandler := handlers.NewAuthHandler(authService)
 
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
-	})
+	app := fiber.New()
+	app.Use(middleware.Logger())
+	app.Use(middleware.Recover())
+	routes.Setup(app, routes.Handlers{Auth: authHandler})
 
 	fmt.Printf("server listening on :%s\n", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {
