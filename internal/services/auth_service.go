@@ -15,12 +15,12 @@ type AuthService interface {
 }
 
 type authService struct {
-	users  repository.UserRepository
+	users  repository.AuthRepository
 	hasher passwordhashing.Hasher
 	jwt    jwt.Service
 }
 
-func NewAuthService(users repository.UserRepository, hasher passwordhashing.Hasher, jwtSvc jwt.Service) AuthService {
+func NewAuthService(users repository.AuthRepository, hasher passwordhashing.Hasher, jwtSvc jwt.Service) AuthService {
 	return &authService{
 		users:  users,
 		hasher: hasher,

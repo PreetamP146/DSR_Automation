@@ -28,7 +28,7 @@ func main() {
 	}
 	fmt.Println("connected to database")
 
-	userRepo := repository.NewUserRepository(db)
+	userRepo := repository.NewAuthRepository(db)
 	hasher := passwordhashing.NewBcryptHasher(10)
 	jwtSvc := jwt.NewService(cfg.JWTSecret, cfg.JWTSecret)
 	authService := services.NewAuthService(userRepo, hasher, jwtSvc)
