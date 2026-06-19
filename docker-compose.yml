@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dsr_automation
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dsr_automation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/dsr_automation?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PORT: "3000"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      COMMIT_SYNC_INTERVAL_MINUTES: ${COMMIT_SYNC_INTERVAL_MINUTES:-15}
+      COMMIT_SYNC_LOOKBACK_DAYS: ${COMMIT_SYNC_LOOKBACK_DAYS:-30}
+      ACTIVITY_SYNC_CRON_SPEC: ${ACTIVITY_SYNC_CRON_SPEC:-*/15 * * * *}
+      ACTIVITY_SYNC_LOOKBACK_DAYS: ${ACTIVITY_SYNC_LOOKBACK_DAYS:-30}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
