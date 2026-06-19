@@ -4,7 +4,7 @@ import "time"
 
 type GitProject struct {
 	ID                string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	GitIntegrationID  string `gorm:"type:uuid;index;not null;uniqueIndex:idx_integration_git_project"`
+	GitIntegrationID  string `gorm:"type:uuid;not null;uniqueIndex:idx_integration_remote_project"`
 	UserID            string `gorm:"type:uuid;index;not null"`
 	RemoteProjectID   string `gorm:"column:remote_project_id;type:text;not null;uniqueIndex:idx_integration_remote_project"`
 	Name              string `gorm:"not null"`

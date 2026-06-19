@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -35,18 +36,39 @@ type Config struct {
 }
 
 func NewSummarizer(cfg Config) Summarizer {
-	if strings.TrimSpace(cfg.OpenAIAPIKey) != "" {
-		model := cfg.OpenAIModel
-		if model == "" {
-			model = "gpt-4o-mini"
-		}
-		return &openAISummarizer{
-			apiKey: cfg.OpenAIAPIKey,
+	template := &templateSummarizer{}
+	if strings.TrimSpace(cfg.OpenAIAPIKey) == "" {
+		return template
+	}
+
+	model := strings.TrimSpace(cfg.OpenAIModel)
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+
+	return &fallbackSummarizer{
+		primary: &openAISummarizer{
+			apiKey: strings.TrimSpace(cfg.OpenAIAPIKey),
 			model:  model,
 			client: http.DefaultClient,
-		}
+		},
+		fallback: template,
 	}
-	return &templateSummarizer{}
+}
+
+type fallbackSummarizer struct {
+	primary  Summarizer
+	fallback Summarizer
+}
+
+func (s *fallbackSummarizer) GenerateDSR(ctx context.Context, reportDate time.Time, data activity.Summary) (*DSRContent, error) {
+	content, err := s.primary.GenerateDSR(ctx, reportDate, data)
+	if err == nil {
+		return content, nil
+	}
+
+	log.Printf("ai summarizer: primary failed (%v), using template fallback", err)
+	return s.fallback.GenerateDSR(ctx, reportDate, data)
 }
 
 type templateSummarizer struct{}

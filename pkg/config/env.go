@@ -48,7 +48,7 @@ func Load() (*Config, error) {
 }
 
 func getEnv(key string) string {
-	return os.Getenv(key)
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 func getEnvWithDefault(key, defaultValue string) string {

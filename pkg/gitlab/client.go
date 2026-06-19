@@ -50,7 +50,7 @@ func (c *client) VerifyToken(baseURL, accessToken string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("PRIVATE-TOKEN", accessToken)
+	req.Header.Set("PRIVATE-TOKEN", strings.TrimSpace(accessToken))
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *client) ListMemberProjects(baseURL, accessToken string) ([]Project, err
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("PRIVATE-TOKEN", accessToken)
+		req.Header.Set("PRIVATE-TOKEN", strings.TrimSpace(accessToken))
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -172,7 +172,7 @@ func (c *client) ListCommits(baseURL, accessToken, projectID, authorUsername str
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("PRIVATE-TOKEN", accessToken)
+		req.Header.Set("PRIVATE-TOKEN", strings.TrimSpace(accessToken))
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

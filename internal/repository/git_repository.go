@@ -30,12 +30,12 @@ func NewGitRepository(db *gorm.DB) GitRepository {
 
 func (r *gitRepository) GetByUserAndProvider(userID, provider string) (*models.GitIntegration, error) {
 	var integration models.GitIntegration
-	err := r.db.Where("user_id = ? AND provider = ?", userID, provider).First(&integration).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
+	result := r.db.Where("user_id = ? AND provider = ?", userID, provider).Limit(1).Find(&integration)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &integration, nil
 }
@@ -114,7 +114,7 @@ func (r *gitRepository) SyncProjects(integrationID, userID string, projects []mo
 func (r *gitRepository) ListProjectsByUserID(userID, provider string, trackedOnly bool) ([]models.GitProject, error) {
 	query := r.db.
 		Preload("GitIntegration").
-		Where("user_id = ?", userID)
+		Where("git_projects.user_id = ?", userID)
 
 	if provider != "" {
 		query = query.Joins(

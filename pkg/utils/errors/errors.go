@@ -11,7 +11,7 @@ var (
 	ErrFailedToGenerateAccessToken  = stderrors.New("failed to generate access token")
 	ErrFailedToGenerateRefreshToken = stderrors.New("failed to generate refresh token")
 	ErrUnsupportedGitProvider       = stderrors.New("unsupported git provider")
-	ErrInvalidGitAccessToken        = stderrors.New("invalid git access token")
+	ErrInvalidGitAccessToken        = stderrors.New("invalid git access token — check the token is correct and has read access to repositories")
 	ErrFailedToSaveGitIntegration   = stderrors.New("failed to save git integration")
 	ErrInvalidBaseURL               = stderrors.New("invalid base url")
 	ErrFailedToFetchGitProjects       = stderrors.New("failed to fetch git projects")

@@ -39,41 +39,75 @@ func NewClient() Client {
 	return &client{httpClient: http.DefaultClient}
 }
 
+func githubAuthHeaders(accessToken string) []string {
+	token := strings.TrimSpace(accessToken)
+	if token == "" {
+		return nil
+	}
+
+	// Classic PATs (ghp_) work with the legacy "token" scheme; fine-grained/OAuth use Bearer.
+	if strings.HasPrefix(token, "ghp_") || strings.HasPrefix(token, "ghu_") {
+		return []string{"token " + token, "Bearer " + token}
+	}
+
+	return []string{"Bearer " + token, "token " + token}
+}
+
+func setGitHubAuth(req *http.Request, accessToken string) {
+	headers := githubAuthHeaders(accessToken)
+	if len(headers) > 0 {
+		req.Header.Set("Authorization", headers[0])
+	}
+}
+
 func (c *client) VerifyToken(baseURL, accessToken string) (*User, error) {
 	endpoint, err := buildURL(baseURL, "/user")
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
+	var lastStatus int
+	for _, authHeader := range githubAuthHeaders(accessToken) {
+		req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", authHeader)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
 
-	if resp.StatusCode == http.StatusUnauthorized {
+		if resp.StatusCode == http.StatusOK {
+			var user User
+			decodeErr := json.NewDecoder(resp.Body).Decode(&user)
+			resp.Body.Close()
+			if decodeErr != nil {
+				return nil, decodeErr
+			}
+			if user.Login == "" {
+				return nil, fmt.Errorf("invalid github user response")
+			}
+			return &user, nil
+		}
+
+		lastStatus = resp.StatusCode
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			return nil, fmt.Errorf("github api error: status %d, body: %s", resp.StatusCode, string(body))
+		}
+	}
+
+	if lastStatus == http.StatusUnauthorized {
 		return nil, fmt.Errorf("invalid access token")
 	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("github api error: status %d, body: %s", resp.StatusCode, string(body))
-	}
 
-	var user User
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, err
-	}
-	if user.Login == "" {
-		return nil, fmt.Errorf("invalid github user response")
-	}
-	return &user, nil
+	return nil, fmt.Errorf("github api error: status %d", lastStatus)
 }
 
 func (c *client) ListMemberRepos(baseURL, accessToken string) ([]Repo, error) {
@@ -95,8 +129,9 @@ func (c *client) ListMemberRepos(baseURL, accessToken string) ([]Repo, error) {
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
+		setGitHubAuth(req, accessToken)
 		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -169,8 +204,9 @@ func (c *client) ListCommits(baseURL, accessToken, owner, repo, author string, s
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
+		setGitHubAuth(req, accessToken)
 		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

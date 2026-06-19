@@ -7,6 +7,7 @@ import (
 	apperrors "dsr-automation/pkg/utils/errors"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -52,6 +53,7 @@ func (h *gitIntegrationHandler) Connect(c *fiber.Ctx) error {
 			"error": "provider, base_url, and access_token are required",
 		})
 	}
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
 
 	response, err := h.gitService.Connect(userID, &req)
 	if err != nil {
@@ -191,7 +193,7 @@ func gitIntegrationError(c *fiber.Ctx, err error) error {
 		errors.Is(err, apperrors.ErrInvalidBaseURL):
 		status = fiber.StatusBadRequest
 	case errors.Is(err, apperrors.ErrInvalidGitAccessToken):
-		status = fiber.StatusUnauthorized
+		status = fiber.StatusBadRequest
 	case errors.Is(err, apperrors.ErrGitIntegrationNotFound),
 		errors.Is(err, apperrors.ErrGitProjectNotFound),
 		errors.Is(err, apperrors.ErrNoTrackedGitProjects):

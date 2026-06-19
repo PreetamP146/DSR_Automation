@@ -8,6 +8,7 @@ import (
 	"dsr-automation/pkg/github"
 	"dsr-automation/pkg/gitlab"
 	"errors"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -39,7 +40,7 @@ func (s *gitIntegrationService) Connect(userID string, req *dto.ConnectGitReques
 		return nil, apperrors.ErrUnsupportedGitProvider
 	}
 
-	baseURL := normalizeBaseURL(req.BaseURL)
+	baseURL := normalizeBaseURL(req.Provider, req.BaseURL)
 	if baseURL == "" {
 		return nil, apperrors.ErrInvalidBaseURL
 	}
@@ -196,6 +197,10 @@ func (s *gitIntegrationService) Sync(userID string, req *dto.SyncGitRequest) (*d
 }
 
 func (s *gitIntegrationService) fetchRemoteProjects(provider, baseURL, accessToken, userID string) (string, string, []models.GitProject, error) {
+	if provider == "github" {
+		baseURL = normalizeGitHubBaseURL(baseURL)
+	}
+
 	switch provider {
 	case "gitlab":
 		user, err := s.gitlabClient.VerifyToken(baseURL, accessToken)
@@ -276,6 +281,36 @@ func toGitProjectResponses(projects []models.GitProject) []dto.GitProjectRespons
 	return responses
 }
 
-func normalizeBaseURL(raw string) string {
-	return strings.TrimSuffix(strings.TrimSpace(raw), "/")
+func normalizeBaseURL(provider, raw string) string {
+	raw = strings.TrimSuffix(strings.TrimSpace(raw), "/")
+	if raw == "" {
+		return ""
+	}
+
+	if provider != "github" {
+		return raw
+	}
+
+	return normalizeGitHubBaseURL(raw)
+}
+
+func normalizeGitHubBaseURL(raw string) string {
+	switch raw {
+	case "https://github.com", "http://github.com":
+		return "https://api.github.com"
+	case "https://api.github.com", "http://api.github.com":
+		return "https://api.github.com"
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+
+	// GitHub Enterprise Server uses /api/v3 on the host root.
+	if parsed.Host != "github.com" && parsed.Host != "api.github.com" && !strings.Contains(parsed.Path, "/api/") {
+		return raw + "/api/v3"
+	}
+
+	return raw
 }

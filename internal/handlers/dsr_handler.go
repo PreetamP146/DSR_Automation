@@ -167,7 +167,7 @@ func dsrError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, apperrors.ErrDSRReportNotFound):
 		status = fiber.StatusNotFound
 	case errors.Is(err, apperrors.ErrInvalidGitAccessToken):
-		status = fiber.StatusUnauthorized
+		status = fiber.StatusBadRequest
 	}
 
 	return c.Status(status).JSON(fiber.Map{

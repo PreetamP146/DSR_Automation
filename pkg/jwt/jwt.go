@@ -31,7 +31,7 @@ func NewService(accessTokenSecret, refreshTokenSecret string) Service {
 	return &jwtService{
 		accessTokenSecret:  accessTokenSecret,
 		refreshTokenSecret: refreshTokenSecret,
-		accessTokenExpiry:  15 * time.Minute,
+		accessTokenExpiry:  time.Hour,
 		refreshTokenExpiry: 7 * 24 * time.Hour,
 	}
 }

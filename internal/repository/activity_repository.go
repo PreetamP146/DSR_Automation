@@ -259,12 +259,12 @@ func (r *activityRepository) UpsertActiveRepository(repo *models.ActiveRepositor
 
 func (r *activityRepository) GetActiveRepositoryByUserID(userID string) (*models.ActiveRepository, error) {
 	var repo models.ActiveRepository
-	err := r.db.Where("user_id = ?", userID).First(&repo).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
+	result := r.db.Where("user_id = ?", userID).Limit(1).Find(&repo)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &repo, nil
 }
