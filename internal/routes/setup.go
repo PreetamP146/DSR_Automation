@@ -8,8 +8,10 @@ import (
 )
 
 type Handlers struct {
-	Auth handlers.AuthHandler
-	Git  handlers.GitIntegrationHandler
+	Auth     handlers.AuthHandler
+	Git      handlers.GitIntegrationHandler
+	DSR      handlers.DSRHandler
+	Activity handlers.ActivityHandler
 }
 
 type Dependencies struct {
@@ -22,4 +24,6 @@ func Setup(app *fiber.App, deps Dependencies, h Handlers) {
 	setupHealthRoutes(api)
 	setupAuthRoutes(api, h.Auth)
 	setupGitIntegrationRoutes(api, deps.JWT, h.Git)
+	setupDSRRoutes(api, deps.JWT, h.DSR)
+	setupActivityRoutes(api, deps.JWT, h.Activity)
 }

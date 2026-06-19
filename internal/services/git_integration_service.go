@@ -7,12 +7,17 @@ import (
 	apperrors "dsr-automation/pkg/utils/errors"
 	"dsr-automation/pkg/github"
 	"dsr-automation/pkg/gitlab"
+	"errors"
 	"strconv"
 	"strings"
 )
 
 type GitIntegrationService interface {
 	Connect(userID string, req *dto.ConnectGitRequest) (*dto.ConnectGitResponse, error)
+	ListIntegrations(userID string) (*dto.ListGitIntegrationsResponse, error)
+	ListProjects(userID, provider string, trackedOnly bool) (*dto.ListGitProjectsResponse, error)
+	UpdateTrackedProjects(userID string, req *dto.UpdateTrackedProjectsRequest) (*dto.UpdateTrackedProjectsResponse, error)
+	Sync(userID string, req *dto.SyncGitRequest) (*dto.SyncGitResponse, error)
 }
 
 type gitIntegrationService struct {
@@ -39,59 +44,9 @@ func (s *gitIntegrationService) Connect(userID string, req *dto.ConnectGitReques
 		return nil, apperrors.ErrInvalidBaseURL
 	}
 
-	var gitUserID, gitUsername string
-	var projects []models.GitProject
-
-	switch req.Provider {
-	case "gitlab":
-		user, err := s.gitlabClient.VerifyToken(baseURL, req.AccessToken)
-		if err != nil {
-			return nil, apperrors.ErrInvalidGitAccessToken
-		}
-		gitUserID = strconv.Itoa(user.ID)
-		gitUsername = user.Username
-
-		gitProjects, err := s.gitlabClient.ListMemberProjects(baseURL, req.AccessToken)
-		if err != nil {
-			return nil, apperrors.ErrFailedToFetchGitProjects
-		}
-		for _, p := range gitProjects {
-			projects = append(projects, models.GitProject{
-				UserID:            userID,
-				GitProjectID:      strconv.Itoa(p.ID),
-				Name:              p.Name,
-				Path:              p.Path,
-				PathWithNamespace: p.PathWithNamespace,
-				WebURL:            p.WebURL,
-				Description:       p.Description,
-				DefaultBranch:     p.DefaultBranch,
-			})
-		}
-
-	case "github":
-		user, err := s.githubClient.VerifyToken(baseURL, req.AccessToken)
-		if err != nil {
-			return nil, apperrors.ErrInvalidGitAccessToken
-		}
-		gitUserID = strconv.Itoa(user.ID)
-		gitUsername = user.Login
-
-		repos, err := s.githubClient.ListMemberRepos(baseURL, req.AccessToken)
-		if err != nil {
-			return nil, apperrors.ErrFailedToFetchGitProjects
-		}
-		for _, r := range repos {
-			projects = append(projects, models.GitProject{
-				UserID:            userID,
-				GitProjectID:      strconv.Itoa(r.ID),
-				Name:              r.Name,
-				Path:              r.Name,
-				PathWithNamespace: r.FullName,
-				WebURL:            r.HTMLURL,
-				Description:       r.Description,
-				DefaultBranch:     r.DefaultBranch,
-			})
-		}
+	gitUserID, gitUsername, projects, err := s.fetchRemoteProjects(req.Provider, baseURL, req.AccessToken, userID)
+	if err != nil {
+		return nil, err
 	}
 
 	existing, err := s.repo.GetByUserAndProvider(userID, req.Provider)
@@ -115,26 +70,13 @@ func (s *gitIntegrationService) Connect(userID string, req *dto.ConnectGitReques
 		return nil, apperrors.ErrFailedToSaveGitIntegration
 	}
 
-	for i := range projects {
-		projects[i].GitIntegrationID = integration.ID
-	}
-
-	if err := s.repo.ReplaceProjects(integration.ID, userID, projects); err != nil {
+	if err := s.repo.SyncProjects(integration.ID, userID, projects); err != nil {
 		return nil, apperrors.ErrFailedToSaveGitProjects
 	}
 
-	projectResponses := make([]dto.GitProjectResponse, 0, len(projects))
-	for _, p := range projects {
-		projectResponses = append(projectResponses, dto.GitProjectResponse{
-			ID:                p.ID,
-			GitProjectID:      p.GitProjectID,
-			Name:              p.Name,
-			Path:              p.Path,
-			PathWithNamespace: p.PathWithNamespace,
-			WebURL:            p.WebURL,
-			Description:       p.Description,
-			DefaultBranch:     p.DefaultBranch,
-		})
+	savedProjects, err := s.repo.ListProjectsByUserID(userID, req.Provider, false)
+	if err != nil {
+		return nil, apperrors.ErrFailedToListGitProjects
 	}
 
 	return &dto.ConnectGitResponse{
@@ -142,9 +84,196 @@ func (s *gitIntegrationService) Connect(userID string, req *dto.ConnectGitReques
 		Provider:       integration.Provider,
 		BaseURL:        integration.BaseURL,
 		Username:       integration.GitUsername,
-		ProjectsSynced: len(projectResponses),
-		Projects:       projectResponses,
+		ProjectsSynced: len(savedProjects),
+		Projects:       toGitProjectResponses(savedProjects),
 	}, nil
+}
+
+func (s *gitIntegrationService) ListIntegrations(userID string) (*dto.ListGitIntegrationsResponse, error) {
+	integrations, err := s.repo.ListIntegrationsByUserID(userID)
+	if err != nil {
+		return nil, apperrors.ErrFailedToListGitIntegrations
+	}
+
+	responses := make([]dto.GitIntegrationResponse, 0, len(integrations))
+	for _, integration := range integrations {
+		total, tracked, err := s.repo.CountProjectsByIntegrationID(integration.ID)
+		if err != nil {
+			return nil, apperrors.ErrFailedToListGitIntegrations
+		}
+
+		responses = append(responses, dto.GitIntegrationResponse{
+			ID:             integration.ID,
+			Provider:       integration.Provider,
+			BaseURL:        integration.BaseURL,
+			Username:       integration.GitUsername,
+			ProjectsSynced: int(total),
+			TrackedCount:   int(tracked),
+		})
+	}
+
+	return &dto.ListGitIntegrationsResponse{Integrations: responses}, nil
+}
+
+func (s *gitIntegrationService) ListProjects(userID, provider string, trackedOnly bool) (*dto.ListGitProjectsResponse, error) {
+	if provider != "" && provider != "gitlab" && provider != "github" {
+		return nil, apperrors.ErrUnsupportedGitProvider
+	}
+
+	projects, err := s.repo.ListProjectsByUserID(userID, provider, trackedOnly)
+	if err != nil {
+		return nil, apperrors.ErrFailedToListGitProjects
+	}
+
+	responses := toGitProjectResponses(projects)
+	return &dto.ListGitProjectsResponse{
+		Projects: responses,
+		Total:    len(responses),
+	}, nil
+}
+
+func (s *gitIntegrationService) UpdateTrackedProjects(userID string, req *dto.UpdateTrackedProjectsRequest) (*dto.UpdateTrackedProjectsResponse, error) {
+	if err := s.repo.SetTrackedProjects(userID, req.ProjectIDs); err != nil {
+		if errors.Is(err, repository.ErrGitProjectNotFound) {
+			return nil, apperrors.ErrGitProjectNotFound
+		}
+		return nil, apperrors.ErrFailedToUpdateTrackedProjects
+	}
+
+	projects, err := s.repo.ListProjectsByUserID(userID, "", true)
+	if err != nil {
+		return nil, apperrors.ErrFailedToListGitProjects
+	}
+
+	responses := toGitProjectResponses(projects)
+	return &dto.UpdateTrackedProjectsResponse{
+		TrackedCount: len(responses),
+		Projects:     responses,
+	}, nil
+}
+
+func (s *gitIntegrationService) Sync(userID string, req *dto.SyncGitRequest) (*dto.SyncGitResponse, error) {
+	if req.Provider != "gitlab" && req.Provider != "github" {
+		return nil, apperrors.ErrUnsupportedGitProvider
+	}
+
+	integration, err := s.repo.GetByUserAndProvider(userID, req.Provider)
+	if err != nil {
+		return nil, apperrors.ErrFailedToSyncGitIntegration
+	}
+	if integration == nil {
+		return nil, apperrors.ErrGitIntegrationNotFound
+	}
+
+	gitUserID, gitUsername, projects, err := s.fetchRemoteProjects(req.Provider, integration.BaseURL, integration.AccessToken, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	integration.GitUserID = gitUserID
+	integration.GitUsername = gitUsername
+	if err := s.repo.Save(integration); err != nil {
+		return nil, apperrors.ErrFailedToSyncGitIntegration
+	}
+
+	if err := s.repo.SyncProjects(integration.ID, userID, projects); err != nil {
+		return nil, apperrors.ErrFailedToSaveGitProjects
+	}
+
+	savedProjects, err := s.repo.ListProjectsByUserID(userID, req.Provider, false)
+	if err != nil {
+		return nil, apperrors.ErrFailedToListGitProjects
+	}
+
+	return &dto.SyncGitResponse{
+		ID:             integration.ID,
+		Provider:       integration.Provider,
+		BaseURL:        integration.BaseURL,
+		Username:       integration.GitUsername,
+		ProjectsSynced: len(savedProjects),
+		Projects:       toGitProjectResponses(savedProjects),
+	}, nil
+}
+
+func (s *gitIntegrationService) fetchRemoteProjects(provider, baseURL, accessToken, userID string) (string, string, []models.GitProject, error) {
+	switch provider {
+	case "gitlab":
+		user, err := s.gitlabClient.VerifyToken(baseURL, accessToken)
+		if err != nil {
+			return "", "", nil, apperrors.ErrInvalidGitAccessToken
+		}
+
+		gitProjects, err := s.gitlabClient.ListMemberProjects(baseURL, accessToken)
+		if err != nil {
+			return "", "", nil, apperrors.ErrFailedToFetchGitProjects
+		}
+
+		projects := make([]models.GitProject, 0, len(gitProjects))
+		for _, project := range gitProjects {
+			projects = append(projects, models.GitProject{
+				UserID:            userID,
+				GitProjectID:      strconv.Itoa(project.ID),
+				Name:              project.Name,
+				Path:              project.Path,
+				PathWithNamespace: project.PathWithNamespace,
+				WebURL:            project.WebURL,
+				Description:       project.Description,
+				DefaultBranch:     project.DefaultBranch,
+			})
+		}
+
+		return strconv.Itoa(user.ID), user.Username, projects, nil
+
+	case "github":
+		user, err := s.githubClient.VerifyToken(baseURL, accessToken)
+		if err != nil {
+			return "", "", nil, apperrors.ErrInvalidGitAccessToken
+		}
+
+		repos, err := s.githubClient.ListMemberRepos(baseURL, accessToken)
+		if err != nil {
+			return "", "", nil, apperrors.ErrFailedToFetchGitProjects
+		}
+
+		projects := make([]models.GitProject, 0, len(repos))
+		for _, repo := range repos {
+			projects = append(projects, models.GitProject{
+				UserID:            userID,
+				GitProjectID:      strconv.Itoa(repo.ID),
+				Name:              repo.Name,
+				Path:              repo.Name,
+				PathWithNamespace: repo.FullName,
+				WebURL:            repo.HTMLURL,
+				Description:       repo.Description,
+				DefaultBranch:     repo.DefaultBranch,
+			})
+		}
+
+		return strconv.Itoa(user.ID), user.Login, projects, nil
+
+	default:
+		return "", "", nil, apperrors.ErrUnsupportedGitProvider
+	}
+}
+
+func toGitProjectResponses(projects []models.GitProject) []dto.GitProjectResponse {
+	responses := make([]dto.GitProjectResponse, 0, len(projects))
+	for _, project := range projects {
+		responses = append(responses, dto.GitProjectResponse{
+			ID:                project.ID,
+			GitIntegrationID:  project.GitIntegrationID,
+			Provider:          project.GitIntegration.Provider,
+			GitProjectID:      project.GitProjectID,
+			Name:              project.Name,
+			Path:              project.Path,
+			PathWithNamespace: project.PathWithNamespace,
+			WebURL:            project.WebURL,
+			Description:       project.Description,
+			DefaultBranch:     project.DefaultBranch,
+			IsTracked:         project.IsTracked,
+		})
+	}
+	return responses
 }
 
 func normalizeBaseURL(raw string) string {

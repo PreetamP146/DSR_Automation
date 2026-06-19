@@ -8,6 +8,9 @@ type DSRReport struct {
 	UserID string `gorm:"type:uuid;index;not null"`
 	User   User   `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 
+	GitProjectID *string    `gorm:"type:uuid;index"`
+	GitProject   *GitProject `gorm:"foreignKey:GitProjectID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+
 	ReportDate time.Time `gorm:"type:date;index"`
 
 	YesterdayWork string `gorm:"type:text"`

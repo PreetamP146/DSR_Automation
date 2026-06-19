@@ -10,5 +10,12 @@ import (
 
 func setupGitIntegrationRoutes(api fiber.Router, jwtSvc jwt.Service, gitHandler handlers.GitIntegrationHandler) {
 	integrations := api.Group("/integrations", middleware.JWT(jwtSvc))
-	integrations.Post("/git", gitHandler.Connect)
+	git := integrations.Group("/git")
+
+	git.Post("/", gitHandler.Connect)
+	git.Get("/", gitHandler.ListIntegrations)
+	git.Post("/sync", gitHandler.Sync)
+	git.Post("/commits/sync", gitHandler.SyncCommits)
+	git.Get("/projects", gitHandler.ListProjects)
+	git.Patch("/projects/tracking", gitHandler.UpdateTrackedProjects)
 }

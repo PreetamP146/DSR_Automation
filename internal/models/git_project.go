@@ -13,6 +13,7 @@ type GitProject struct {
 	WebURL            string `gorm:"not null"`
 	Description       string
 	DefaultBranch     string
+	IsTracked         bool      `gorm:"not null;default:false;index"`
 	CreatedAt         time.Time `gorm:"autoCreateTime"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime"`
 
