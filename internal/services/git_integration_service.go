@@ -212,7 +212,7 @@ func (s *gitIntegrationService) fetchRemoteProjects(provider, baseURL, accessTok
 		for _, project := range gitProjects {
 			projects = append(projects, models.GitProject{
 				UserID:            userID,
-				GitProjectID:      strconv.Itoa(project.ID),
+				RemoteProjectID:   strconv.Itoa(project.ID),
 				Name:              project.Name,
 				Path:              project.Path,
 				PathWithNamespace: project.PathWithNamespace,
@@ -239,7 +239,7 @@ func (s *gitIntegrationService) fetchRemoteProjects(provider, baseURL, accessTok
 		for _, repo := range repos {
 			projects = append(projects, models.GitProject{
 				UserID:            userID,
-				GitProjectID:      strconv.Itoa(repo.ID),
+				RemoteProjectID:   strconv.Itoa(repo.ID),
 				Name:              repo.Name,
 				Path:              repo.Name,
 				PathWithNamespace: repo.FullName,
@@ -263,7 +263,7 @@ func toGitProjectResponses(projects []models.GitProject) []dto.GitProjectRespons
 			ID:                project.ID,
 			GitIntegrationID:  project.GitIntegrationID,
 			Provider:          project.GitIntegration.Provider,
-			GitProjectID:      project.GitProjectID,
+			GitProjectID:      project.RemoteProjectID,
 			Name:              project.Name,
 			Path:              project.Path,
 			PathWithNamespace: project.PathWithNamespace,

@@ -252,7 +252,7 @@ func (s *dsrService) fetchRemoteGitActivity(projects []models.GitProject, since,
 
 	commitsByProject := make(map[string][]activity.RemoteCommit, len(projects))
 	for _, commit := range storedCommits {
-		commitsByProject[commit.GitProjectID] = append(commitsByProject[commit.GitProjectID], activity.RemoteCommit{
+		commitsByProject[commit.ProjectID] = append(commitsByProject[commit.ProjectID], activity.RemoteCommit{
 			SHA:     commit.SHA,
 			Message: commit.Message,
 			Author:  commit.Author,

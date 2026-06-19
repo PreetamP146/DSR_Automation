@@ -62,24 +62,24 @@ func (r *gitRepository) SyncProjects(integrationID, userID string, projects []mo
 		trackedByGitID := make(map[string]bool, len(existing))
 		existingByGitID := make(map[string]string, len(existing))
 		for _, project := range existing {
-			trackedByGitID[project.GitProjectID] = project.IsTracked
-			existingByGitID[project.GitProjectID] = project.ID
+			trackedByGitID[project.RemoteProjectID] = project.IsTracked
+			existingByGitID[project.RemoteProjectID] = project.ID
 		}
 
 		incomingGitIDs := make(map[string]struct{}, len(projects))
 		for i := range projects {
 			projects[i].GitIntegrationID = integrationID
 			projects[i].UserID = userID
-			if tracked, ok := trackedByGitID[projects[i].GitProjectID]; ok {
+			if tracked, ok := trackedByGitID[projects[i].RemoteProjectID]; ok {
 				projects[i].IsTracked = tracked
-				projects[i].ID = existingByGitID[projects[i].GitProjectID]
+				projects[i].ID = existingByGitID[projects[i].RemoteProjectID]
 			}
-			incomingGitIDs[projects[i].GitProjectID] = struct{}{}
+			incomingGitIDs[projects[i].RemoteProjectID] = struct{}{}
 		}
 
 		var removedIDs []string
 		for _, project := range existing {
-			if _, ok := incomingGitIDs[project.GitProjectID]; !ok {
+			if _, ok := incomingGitIDs[project.RemoteProjectID]; !ok {
 				removedIDs = append(removedIDs, project.ID)
 			}
 		}
@@ -96,7 +96,7 @@ func (r *gitRepository) SyncProjects(integrationID, userID string, projects []mo
 		return tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{
 				{Name: "git_integration_id"},
-				{Name: "git_project_id"},
+				{Name: "remote_project_id"},
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"name",

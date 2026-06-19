@@ -30,7 +30,7 @@ func (r *commitRepository) SaveNew(commits []models.GitCommit) (int64, error) {
 
 	result := r.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "git_project_id"},
+			{Name: "project_id"},
 			{Name: "sha"},
 		},
 		DoNothing: true,
@@ -48,7 +48,7 @@ func (r *commitRepository) ListByProjectIDsAndDateRange(projectIDs []string, sin
 
 	var commits []models.GitCommit
 	if err := r.db.
-		Where("git_project_id IN ? AND committed_at >= ? AND committed_at <= ?", projectIDs, since, until).
+		Where("project_id IN ? AND committed_at >= ? AND committed_at <= ?", projectIDs, since, until).
 		Order("committed_at ASC").
 		Find(&commits).Error; err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (r *commitRepository) ListByProjectIDsAndDateRange(projectIDs []string, sin
 func (r *commitRepository) GetLatestCommittedAt(gitProjectID string) (*time.Time, error) {
 	var commit models.GitCommit
 	err := r.db.
-		Where("git_project_id = ?", gitProjectID).
+		Where("project_id = ?", gitProjectID).
 		Order("committed_at DESC").
 		First(&commit).Error
 	if err != nil {

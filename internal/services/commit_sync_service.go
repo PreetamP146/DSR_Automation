@@ -112,7 +112,7 @@ func (s *commitSyncService) syncProject(ctx context.Context, project models.GitP
 	toSave := make([]models.GitCommit, 0, len(remoteCommits))
 	for _, commit := range remoteCommits {
 		toSave = append(toSave, models.GitCommit{
-			GitProjectID: project.ID,
+			ProjectID:   project.ID,
 			UserID:       project.UserID,
 			SHA:          commit.SHA,
 			Message:      commit.Message,
@@ -175,7 +175,7 @@ func (s *commitSyncService) fetchRemoteCommits(integration *models.GitIntegratio
 		commits, err := s.gitlabClient.ListCommits(
 			integration.BaseURL,
 			integration.AccessToken,
-			project.GitProjectID,
+			project.RemoteProjectID,
 			integration.GitUsername,
 			since,
 			until,

@@ -6,7 +6,7 @@ type GitProject struct {
 	ID                string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	GitIntegrationID  string `gorm:"type:uuid;index;not null;uniqueIndex:idx_integration_git_project"`
 	UserID            string `gorm:"type:uuid;index;not null"`
-	GitProjectID      string `gorm:"not null;uniqueIndex:idx_integration_git_project"`
+	RemoteProjectID   string `gorm:"column:remote_project_id;type:text;not null;uniqueIndex:idx_integration_remote_project"`
 	Name              string `gorm:"not null"`
 	Path              string `gorm:"not null"`
 	PathWithNamespace string `gorm:"not null"`
