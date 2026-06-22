@@ -86,7 +86,7 @@ All endpoints except `/api/health`, `/api/auth/register`, and `/api/auth/login` 
 Authorization: Bearer <access_token>
 ```
 
-### Auth
+### Authentication
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
